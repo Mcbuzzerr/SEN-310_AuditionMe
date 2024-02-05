@@ -1,0 +1,446 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  audition-me-sam
+
+  Sample SAM Template for audition-me-sam
+
+# More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
+Globals:
+  Function:
+    Timeout: 3
+    MemorySize: 128
+
+    # You can add LoggingConfig parameters such as the Logformat, Log Group, and SystemLogLevel or ApplicationLogLevel. Learn more here https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-resource-function.html#sam-function-loggingconfig.
+    LoggingConfig:
+      LogFormat: JSON
+
+  Api:
+    Cors:
+      AllowMethods: "'GET,POST,DELETE,PUT,OPTIONS'"
+      AllowHeaders: "'content-type'"
+      AllowOrigin: "'*'"
+
+Resources:
+  MyApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: "1"
+      Auth:
+        # DefaultAuthorizer: StandardAuth
+        Authorizers:
+          StandardAuth:
+            FunctionArn: !GetAtt StandardAuth.Arn
+            Identity:
+              Headers:
+                - Authorization
+              ReauthorizeEvery: 0
+            FunctionPayloadType: REQUEST
+          DirectorAuth:
+            FunctionArn: !GetAtt DirectorAuth.Arn
+            Identity:
+              Headers:
+                - Authorization
+              ReauthorizeEvery: 0
+            FunctionPayloadType: REQUEST
+    
+  CreatePersonFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../People/add_person
+      Handler: app.lambda_handler
+      Runtime: python3.12
+      Policies:
+        - AmazonDynamoDBFullAccess
+        - DynamoDBCrudPolicy:
+            TableName: 
+              !Ref PeopleTable
+      Architectures:
+        - x86_64
+      Events:
+        CreateDirector:
+          Type: Api
+          Properties:
+            RestApiId: !Ref MyApi
+            Path: /Director
+            Method: post
+        CreatePerformer:
+          Type: Api
+          Properties:
+            RestApiId: !Ref MyApi
+            Path: /Performer
+            Method: post
+  
+  GetPersonFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../People/get_person
+      Handler: app.lambda_handler
+      Runtime: python3.12
+      Policies:
+        - AmazonDynamoDBFullAccess
+        - DynamoDBCrudPolicy:
+            TableName: 
+              !Ref PeopleTable
+      Architectures:
+        - x86_64
+      Events:
+        GetDirector:
+          Type: Api
+          Properties:
+            RestApiId: !Ref MyApi
+            Path: /Director/{id}
+            Method: get
+            Auth:
+              Authorizer: StandardAuth
+              Identity:
+                Headers:
+                  - Authorization
+              FunctionPayloadType: REQUEST
+        GetPerformer:
+          Type: Api
+          Properties:
+            RestApiId: !Ref MyApi
+            Path: /Performer/{id}
+            Method: get
+            Auth:
+              Authorizer: StandardAuth
+              Identity:
+                Headers:
+                  - Authorization
+              FunctionPayloadType: REQUEST
+
+  UpdatePersonFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../People/put_person
+      Handler: app.lambda_handler
+      Runtime: python3.12
+      Policies:
+        - AmazonDynamoDBFullAccess
+        - DynamoDBCrudPolicy:
+            TableName: 
+              !Ref PeopleTable
+      Architectures:
+        - x86_64
+      Events:
+        UpdateDirector:
+          Type: Api
+          Properties:
+            RestApiId: !Ref MyApi
+            Path: /Director/{id}
+            Method: put
+            Auth:
+              Authorizer: DirectorAuth
+              Identity:
+                Headers:
+                  - Authorization
+              FunctionPayloadType: REQUEST
+        UpdatePerformer:
+          Type: Api
+          Properties:
+            RestApiId: !Ref MyApi
+            Path: /Performer/{id}
+            Method: put
+            Auth:
+              Authorizer: StandardAuth
+              Identity:
+                Headers:
+                  - Authorization
+              FunctionPayloadType: REQUEST
+
+  DeletePersonFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../People/delete_person
+      Handler: app.lambda_handler
+      Runtime: python3.12
+      Policies:
+        - AmazonDynamoDBFullAccess
+        - DynamoDBCrudPolicy:
+            TableName: 
+              !Ref PeopleTable
+      Architectures:
+        - x86_64
+      Events:
+        DeleteDirector:
+          Type: Api
+          Properties:
+            RestApiId: !Ref MyApi
+            Path: /Director/{id}
+            Method: delete
+            Auth:
+              Authorizer: DirectorAuth
+              Identity:
+                Headers:
+                  - Authorization
+              FunctionPayloadType: REQUEST
+        DeletePerformer:
+          Type: Api
+          Properties:
+            RestApiId: !Ref MyApi
+            Path: /Performer/{id}
+            Method: delete
+            Auth:
+              Authorizer: StandardAuth
+              Identity:
+                Headers:
+                  - Authorization
+              FunctionPayloadType: REQUEST
+
+  CreatePerformanceFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../Performances/add_performance
+      Handler: app.lambda_handler
+      Runtime: python3.12
+      Policies:
+        - AmazonDynamoDBFullAccess
+        - DynamoDBCrudPolicy:
+            TableName: 
+              !Ref PerformanceTable
+      Architectures:
+        - x86_64
+      Events:
+        CreatePerformance:
+          Type: Api
+          Properties:
+            RestApiId: !Ref MyApi
+            Path: /Performance
+            Method: post
+            Auth:
+              Authorizer: DirectorAuth
+              Identity:
+                Headers:
+                  - Authorization
+              FunctionPayloadType: REQUEST
+  
+  GetPerformanceFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../Performances/get_performance
+      Handler: app.lambda_handler
+      Runtime: python3.12
+      Policies:
+        - AmazonDynamoDBFullAccess
+        - DynamoDBCrudPolicy:
+            TableName: 
+              !Ref PerformanceTable
+      Architectures:
+        - x86_64
+      Events:
+        GetPerformance:
+          Type: Api
+          Properties:
+            RestApiId: !Ref MyApi
+            Path: /Performance/{id}
+            Method: get
+            Auth:
+              Authorizer: StandardAuth
+              Identity:
+                Headers:
+                  - Authorization
+              FunctionPayloadType: REQUEST    
+  
+  GetPerformanceAuditionsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../Performances/get_performance_auditions
+      Handler: app.lambda_handler
+      Runtime: python3.12
+      Policies:
+        - AmazonDynamoDBFullAccess
+        - DynamoDBCrudPolicy:
+            TableName: 
+              !Ref PerformanceTable
+      Architectures:
+        - x86_64
+      Events:
+        GetPerformanceAuditions:
+          Type: Api
+          Properties:
+            RestApiId: !Ref MyApi
+            Path: /Performance/Auditions/{id}
+            Method: get
+            Auth:
+              Authorizer: StandardAuth
+              Identity:
+                Headers:
+                  - Authorization
+              FunctionPayloadType: REQUEST
+  
+  GetPerformanceCastFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../Performances/get_performance_cast
+      Handler: app.lambda_handler
+      Runtime: python3.12
+      Policies:
+        - AmazonDynamoDBFullAccess
+        - DynamoDBCrudPolicy:
+            TableName: 
+              !Ref PerformanceTable
+      Architectures:
+        - x86_64
+      Events:
+        GetPerformanceCast:
+          Type: Api
+          Properties:
+            RestApiId: !Ref MyApi
+            Path: /Performance/Cast/{id}
+            Method: get
+            Auth:
+              Authorizer: StandardAuth
+              Identity:
+                Headers:
+                  - Authorization
+              FunctionPayloadType: REQUEST
+
+  UpdatePerformanceFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../Performances/put_performance
+      Handler: app.lambda_handler
+      Runtime: python3.12
+      Policies:
+        - AmazonDynamoDBFullAccess
+        - DynamoDBCrudPolicy:
+            TableName: 
+              !Ref PerformanceTable
+      Architectures:
+        - x86_64
+      Events:
+        UpdatePerformance:
+          Type: Api
+          Properties:
+            RestApiId: !Ref MyApi
+            Path: /Performance/{id}
+            Method: put
+            Auth:
+              Authorizer: DirectorAuth
+              Identity:
+                Headers:
+                  - Authorization
+              FunctionPayloadType: REQUEST
+
+  AuditionForPerformanceFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../Performances/audition_for_performance
+      Handler: app.lambda_handler
+      Runtime: python3.12
+      Policies:
+        - AmazonDynamoDBFullAccess
+        - DynamoDBCrudPolicy:
+            TableName: 
+              !Ref PerformanceTable
+      Architectures:
+        - x86_64
+      Events:
+        AuditionForPerformance:
+          Type: Api
+          Properties:
+            RestApiId: !Ref MyApi
+            Path: /Performance/Audition/{id}
+            Method: post
+            Auth:
+              Authorizer: StandardAuth
+              Identity:
+                Headers:
+                  - Authorization
+              FunctionPayloadType: REQUEST
+
+  DeletePerformanceFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../Performances/delete_performance
+      Handler: app.lambda_handler
+      Runtime: python3.12
+      Policies:
+        - AmazonDynamoDBFullAccess
+        - DynamoDBCrudPolicy:
+            TableName: 
+              !Ref PerformanceTable
+      Architectures:
+        - x86_64
+      Events:
+        DeletePerformance:
+          Type: Api
+          Properties:
+            RestApiId: !Ref MyApi
+            Path: /Performance/{id}
+            Method: delete
+            Auth:
+              Authorizer: DirectorAuth
+              Identity:
+                Headers:
+                  - Authorization
+              FunctionPayloadType: REQUEST
+  
+  AddPerformerToPerformanceFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../Performances/add_performer_to_performance
+      Handler: app.lambda_handler
+      Runtime: python3.12
+      Policies:
+        - AmazonDynamoDBFullAccess
+        - DynamoDBCrudPolicy:
+            TableName: 
+              !Ref PerformanceTable
+      Architectures:
+        - x86_64
+      Events:
+        AddPerformerToPerformance:
+          Type: Api
+          Properties:
+            RestApiId: !Ref MyApi
+            Path: /Performance/Add-Performer/{id}
+            Method: post
+            Auth:
+              Authorizer: StandardAuth
+              Identity:
+                Headers:
+                  - Authorization
+              FunctionPayloadType: REQUEST
+
+
+  DirectorAuth:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../Authorizers/DirectorAuth
+      Handler: app.lambda_handler
+      Runtime: python3.12
+      Policies:
+        - AmazonDynamoDBFullAccess
+        - DynamoDBCrudPolicy:
+            TableName: 
+              !Ref PeopleTable
+
+  StandardAuth:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../Authorizers/StandardAuth
+      Handler: app.lambda_handler
+      Runtime: python3.12
+      Policies:
+        - AmazonDynamoDBFullAccess
+        - DynamoDBCrudPolicy:
+            TableName: 
+              !Ref PeopleTable
+
+  PeopleTable:
+    Type: AWS::Serverless::SimpleTable
+    Properties:
+      PrimaryKey:
+        Name: Id
+        Type: String
+      TableName: AuditionMePeople
+  
+  PerformanceTable:
+    Type: AWS::Serverless::SimpleTable
+    Properties:
+      PrimaryKey:
+        Name: Id
+        Type: String
+      TableName: AuditionMePerformances

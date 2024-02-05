@@ -1,0 +1,7 @@
+version: '3.9'
+services: 
+  
+  delete_person:
+    build: ./
+    image: standard_auth:1.0
+  
